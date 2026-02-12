@@ -1,0 +1,164 @@
+import java_cup.runtime.*;
+import java.io.*;
+
+parser code {:
+    public int errNo = 0;
+
+    public static void main(String[] args) {
+        try {
+            FileReader file = new FileReader(args[0]);
+            MPLexer scanner = new MPLexer(file);
+            MPParserError parser = new MPParserError(scanner);
+            parser.parse();
+            if (parser.errNo == 0)
+                System.out.println("Analiza zavrsena. U kodu nema gresaka.");
+            else
+                System.out.println("Analiza zavrsena. Broj gresaka: " + parser.errNo);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void syntax_error(Symbol cur_token) {
+       
+    }
+
+    public void report_error(String message, Object info) {
+        System.out.print( message );
+    }
+
+    public int getLine() {
+        return ((MPLexer)getScanner()).getLine();
+    }
+:};
+
+// Terminali
+terminal MAIN, EXIT, INT, FLOAT, BOOL, FOR, IN, APPLY, ID, CONST, PLUS, MINUS, ASSIGN, SEMICOLON, COMMA, LBRACKET, RBRACKET, TRUE, FALSE;
+
+// Neterminali
+non terminal Program, Block, Declarations, Declaration, Type, Expressions, Expression, Assignment, ArithmeticExpression, TermExpression, ApplyExpression, NameList;
+
+// ======================
+// Grammar in Friend's Style
+// ======================
+
+Program ::= MAIN Block EXIT
+    {: 
+    	System.out.println("Redukcija po smeni 1."); 
+    :}
+        | MAIN Block error
+        {:
+            System.out.println("Nedostaje 'exit' na kraju programa");
+            parser.errNo++;
+        :}
+        | MAIN error
+        {:
+            System.out.println("Greska u liniji  " + parser.getLine() + "Telo programa je nekorektno.");
+            parser.errNo++;
+        :}
+        ;
+
+Block ::= Declarations Expressions
+    {: 
+    	System.out.println("Redukcija po smeni 2."); 
+    :};
+
+
+Declarations ::= Declarations Declaration
+               | Declaration
+               ;
+
+Declaration ::= Type ID SEMICOLON
+              | Type ID error
+              {:
+                  System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje ';' nakon deklaracije");
+                  parser.errNo++;
+              :}
+              | Type error
+              {:
+                  System.out.println("Greska u liniji " + parser.getLine() + " Neispravan ID u deklaraciji");
+                  parser.errNo++;
+              :}
+              ;
+
+Type ::= INT | FLOAT | BOOL ;
+
+Expressions ::= Expressions SEMICOLON Expression
+              | Expression
+              | Expressions SEMICOLON error
+              {:
+                  System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje izraz nakon ';'");
+                  parser.errNo++;
+              :}
+              ;
+
+Expression ::= Assignment
+             | ApplyExpression
+             ;
+
+Assignment ::= ID ASSIGN ArithmeticExpression 
+             | ID ASSIGN error
+             {:
+                  System.out.println("Greska u liniji " + parser.getLine() + " Neispravan izraz u dodeli");
+                  parser.errNo++;
+             :}
+             | ID error
+             {:
+                  System.out.println("Greska u liniji " + parser.getLine() +  "Nedostaje ':=' u dodeli");
+                  parser.errNo++;
+             :}
+             ;
+
+ArithmeticExpression ::= ArithmeticExpression PLUS TermExpression
+                       | ArithmeticExpression MINUS TermExpression
+                       | TermExpression
+				;
+				
+TermExpression ::= CONST | ID ;
+
+ApplyExpression ::= FOR ID IN LBRACKET NameList RBRACKET APPLY Expression
+                | FOR ID IN LBRACKET NameList RBRACKET APPLY error
+                {:
+                    System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje izraz posle 'APPLY'");
+                    parser.errNo++;
+                :}
+                | FOR ID IN LBRACKET NameList RBRACKET error
+                {:
+                    System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje 'APPLY' i izraz");
+                    parser.errNo++;
+                :}
+                | FOR ID IN LBRACKET NameList error
+                {:
+                    System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje ']'");
+                    parser.errNo++;
+                :}
+                | FOR ID IN error
+                {:
+                    System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje '['");
+                    parser.errNo++;
+                :}
+                | FOR ID error 
+                {:
+                    System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje 'IN'");
+                    parser.errNo++;
+                :}
+                | FOR error 
+                {:
+                    System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje identifikator posle 'FOR'");
+                    parser.errNo++;
+                :}
+                ;
+
+NameList ::= NameList COMMA ID
+           | ID
+           | NameList COMMA error
+           {:
+               System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje identifikator posle ','");
+               parser.errNo++;
+           :}
+           | NameList error ID
+           {:
+               System.out.println("Greska u liniji " + parser.getLine() + " Nedostaje ',' izmedju identifikatora");
+               parser.errNo++;
+           :}
+           ;

@@ -1,0 +1,142 @@
+import java_cup.runtime.*;
+import java.io.*;
+import java.util.*;
+import SymbolTable.*;
+import AST.*; 
+
+parser code {:
+
+    public SymbolTable symbolTable;
+ 
+:};
+
+init with {:
+    symbolTable = new SymbolTable();
+:};
+
+terminal MAIN, EXIT, INT, FLOAT, BOOL, FOR, IN, APPLY;
+terminal PLUS, MINUS, ASSIGN, SEMICOLON, COMMA, LBRACKET, RBRACKET;
+terminal Boolean TRUE, FALSE; 
+terminal String ID;
+terminal Integer INTCONST;
+terminal Character CHARCONST;
+terminal Float FLOATCONST;
+
+non terminal Block Program, Block; 
+non terminal Declarations, Declaration;
+non terminal Block Expressions, ApplyExpression;
+non terminal Statement Expression;
+non terminal Expression ArithmeticExpression, TermExpression;
+non terminal Assignment Assignment;
+non terminal Constant Konstanta;
+non terminal Type Type;
+non terminal ArrayList NameList;
+
+Program ::= MAIN Block:b EXIT
+    {: 
+        RESULT = b; 
+    :};
+
+Block ::= Declarations Expressions:b
+    {:
+        RESULT = b;  
+    :};
+
+Declarations ::= Declarations Declaration 
+               | Declaration
+               ;
+
+Declaration ::= Type:t ID:ime SEMICOLON
+    {:
+        parser.symbolTable.addVar(ime, t);
+    :};
+
+Type ::= INT   {: RESULT = parser.symbolTable.getType("integer"); :} 
+       | FLOAT {: RESULT = parser.symbolTable.getType("float"); :}
+       | BOOL  {: RESULT = parser.symbolTable.getType("bool"); :};
+
+
+Expressions ::= Expressions:b SEMICOLON Expression:s
+    {: 
+    	RESULT = b;
+        RESULT.addStatement(s);
+    :}
+    | Expression:s
+    {: 
+        RESULT = new Block();
+        RESULT.addStatement(s);
+    :};
+
+Expression ::= Assignment:a       
+			{: 
+				RESULT = a; 
+			:}
+            | ApplyExpression:ae 
+            {: 
+            	RESULT = ae; 
+            :};
+
+
+Assignment ::= ID:ime ASSIGN ArithmeticExpression:a
+    {:
+        Variable var = parser.symbolTable.getVar(ime);
+        RESULT = new Assignment(var, a);
+    :};
+
+ApplyExpression ::= FOR ID:temp 
+    {: 
+        // 1. Add it to the table so the body can "find" it
+        parser.symbolTable.addVar(temp, parser.symbolTable.getType("integer")); 
+    :}
+    IN LBRACKET NameList:lista RBRACKET APPLY Expression:body
+    {:
+        // 2. Build the AST
+        Block resultBlock = new Block();
+        Variable tempVar = parser.symbolTable.getVar(temp);
+
+        for (int i = 0; i < lista.size(); i++) {
+            String name = (String) lista.get(i);
+            Variable listVar = parser.symbolTable.getVar(name);
+            resultBlock.addStatement(new ForStatement(listVar, tempVar, body));
+        }
+        
+
+        RESULT = resultBlock;
+    :};
+    
+    
+NameList ::= NameList:lista COMMA ID:ime
+    {:
+    	RESULT = lista;
+        lista.add(ime);
+    :}
+    | ID:ime
+    {:
+        RESULT = new ArrayList();
+        RESULT.add( ime );
+    :};
+
+ArithmeticExpression ::= ArithmeticExpression:a PLUS TermExpression:t
+    {: 
+    	RESULT = new Sum(a, t); 
+    :}
+    | ArithmeticExpression:a MINUS TermExpression:t
+    {: 
+    	RESULT = new Subtract(a, t); 
+    :}
+    | TermExpression:t
+    {: 
+    	RESULT = t; 
+    :};
+
+TermExpression ::= Konstanta:k
+    {: RESULT = new ConstantExpression(k); :}
+    | ID:ime
+    {: 
+        Variable var = parser.symbolTable.getVar(ime);
+        RESULT = new VariableExpression(var); 
+    :};
+
+Konstanta ::= INTCONST:c   {: RESULT = new Constant(parser.symbolTable.getType("integer"), c); :}
+            | CHARCONST:c  {: RESULT = new Constant(parser.symbolTable.getType("char"), c); :}
+            | FLOATCONST:c {: RESULT = new Constant(parser.symbolTable.getType("float"), c); :};
